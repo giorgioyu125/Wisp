@@ -81,77 +81,48 @@ typedef struct GCInfo{
 	size_t obj_size;
 } GCInfo;
 
-/* @brief Flags packer via va_list.
- * @param[in] Accepts a variable number of args that will overlap in the flags count
- *			  via a or mask in the functions. This can be considered "like" a utility macro.
-*/
-static inline uint32_t flags_pack(uint32_t first, ...) {
-	va_list ap;
-	uint32_t flags = 0;
-	va_start(ap, first);
-	uint32_t f = first;
-	while (f) {
-		flags |= f;
-		f = (uint32_t)va_arg(ap, unsigned int); /* default promotions */
-	}
-	va_end(ap);
-	return flags;
+
+typedef enum flags {
+    NO_FLAGS,         ///< No special flags are set.
+    immutable,        ///< The object cannot be modified after creation.
+    pure,             ///< Function has no side effects (output depends only on inputs).
+    primitive,        ///< Represents a primitive type (e.g., integer, boolean).
+    variadic,         ///< Function accepts variable arguments (e.g., printf-style).
+    pinned,           ///< Memory is pinned; cannot be moved by GC/allocator.
+    external,         ///< Defined in another compilation unit/external library.
+    const_binding,    ///< Binding is constant (like C's `const`).
+    reachable,        ///< Object is reachable from the root set (during GC).
+    finalizer,        ///< Object has a finalizer (needs cleanup before collection).
+    has_pointers,     ///< Object contains pointers to other objects (GC must traverse).
+    small,            ///< Object is small (optimization hint for allocator).
+    large,            ///< Object is large (allocated in special region).
+    atomic,           ///< Object supports atomic operations (concurrency).
+    deprecated,       ///< Object is deprecated (may be collected early).
+    transient,        ///< Object is short-lived (likely to die young).
+    root,             ///< Object is a root (global/static/stack variable).
+    scanned,          ///< Object was scanned in the current GC cycle.
+    precise,          ///< Object layout is precisely known (no conservative scanning).
+    no_scan,          ///< Object should not be scanned (e.g., raw data).
+    concurrent,       ///< Object can be accessed concurrently (requires synchronization).
+    immortal,         ///< Object never becomes garbage (e.g., static/global).
+    nursery_allocated,///< Object was allocated in the young generation.
+    old_gen_allocated ///< Object was promoted to the old generation.
+} flags;
+
+flags pack_flags(flags first_flag, ...) {
+    va_list args;
+    flags combined = first_flag ? first_flag : NO_FLAGS;
+    
+    va_start(args, first_flag);
+    flags next_flag;
+    while ((next_flag = va_arg(args, flags)) != 0) {
+        combined |= next_flag;
+    }
+    va_end(args);
+    
+    return combined;
 }
 
-/**
- * @brief An enum defining a set of bit flags.
- *
- * @details These flags describe various properties of an object, function, or
- *          binding. They can be combined using the bitwise OR operator (`|`).
- *
- *          To check if a particular flag is set, use the bitwise AND 
- *          operator (`&`).
- *
- * @code
- * // Example: Create a flags variable for an immutable and primitive object
- * flags my_object_flags = immutable | primitive;
- *
- * // Check if the object is immutable
- * if (my_object_flags & immutable) {
- *     printf("The object is immutable.\n");
- * }
- * @endcode
- */
-typedef enum flags {
-	/** @brief No special flags are set.
-	 *  It's good practice to have a value for the zero/default state.
-	 */
-	NO_FLAGS      = 0,
-
-	/** @brief The object cannot be modified after its creation. */
-	immutable     = 1u << 0,
-
-	/** @brief Indicates that a function is pure, i.e., it has no side effects
-	 *         and its output depends solely on its inputs.
-	 */
-	pure          = 1u << 1,
-
-	/** @brief The object represents a primitive data type or function(e.g., integer, boolean). */
-	primitive     = 1u << 2,
-
-	/** @brief The function accepts a variable number of arguments (like printf). */
-	variadic      = 1u << 3,
-
-	/** @brief The object is "pinned" in memory and cannot be moved or reallocated
-	 *         by a memory manager (e.g., a garbage collector).
-	 */
-	pinned        = 1u << 4,
-
-	/** @brief The object or function is defined in another compilation unit
-	 *         or external library.
-	 */
-	external      = 1u << 5,
-
-	/** @brief The variable's binding is constant and cannot be reassigned. 
-	 *         Similar to the `const` keyword in C.
-	 */
-	const_binding = 1u << 6
-} flags;
 
 /** @brief Check if a flag is identical to the bit mask. */
 static inline int  tst_flag(uint32_t flags, uint32_t bit) { return (flags & bit) != 0; }
@@ -161,6 +132,34 @@ static inline void add_flag(uint32_t* flags, uint32_t bit){ *flags |= bit; }
 static inline void clr_flag(uint32_t* flags, uint32_t bit){ *flags &= ~bit; }
 
 /* -------------------- Symbol, SymTab, and Helpers -------------------- */
+
+
+/**
+ * @brief A simple dummy hash function using the djb2 algorithm.
+ * @details This function computes a 32-bit hash value for a null-terminated string.
+ *          It is not cryptographically secure and is intended for basic use, such as
+ *          symbol table lookups. The algorithm starts with a seed value and iterates
+ *          through each character, combining it into the hash.
+ * @param name The null-terminated string to hash.
+ * @return A 32-bit unsigned integer hash value.
+ */
+#define HASH_SEED 5381
+uint32_t hash(const char* name) {
+    if (name == NULL) {
+        return 0;
+    }
+
+    uint32_t hash_value = HASH_SEED;
+    int c;
+
+    while ((c = *name++)) {
+        hash_value = ((hash_value << 5) + hash_value) + c;
+    }
+
+    return hash_value;
+}
+
+
 
 /**
  * @brief Represents a symbol (identifier) in the language.
@@ -190,8 +189,6 @@ typedef struct Symbol {
 	uint32_t flags;     
 	/* @brief A bitmask of additional properties. @see flags */
 
-	arity_info arity;     
-	/* @brief Packed min/max arity. */
 
 	void* value_ptr; 
 	/* @brief Pointers to data and code. @see ConsData and other 
@@ -251,18 +248,17 @@ typedef struct FunctionData {
     
     union {
         struct {
-            Symbol* body;           ///> Corpo della funzione LISP
-            EnvFrame* closure_env;  ///> Environment catturato
+            Symbol* body;           ///> Body of the LISP function
+            EnvFrame* closure_env;  ///> Captured Env
         } lisp;
         
         struct {
-            CFunctionFn fn;         ///> Funzione C normale  
+            CFunctionFn fn;         ///> Normal C function  
             const char* c_name;     ///> Name for debug
         } c;
     } func;
     
-    uint8_t min_args;
-    uint8_t max_args;       ///> 255 = variadic
+	arity_info arity;				///> Packed min/max arity.
 } FunctionData;
 
 
@@ -321,7 +317,7 @@ void symtab_bind(SymTab* st, char* name, Symbol* symbol);
  * @param name Variable name to lookup
  * @return Symbol if found, NULL otherwise
  */
-Symbol* symtab_lookup(SymTab* st, char* name);
+Symbol* symtab_lookup(SymTab* st, const char* name);
 
 /**
  * @brief Removes name binding (symbol remains alive if referenced elsewhere).

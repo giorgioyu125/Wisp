@@ -84,7 +84,7 @@ void heap_destroy(Heap* h) {
 
 /* ------------------ GC core functions ------------------ */
 
-Gc* ggc_init(void) {
+Gc* gc_init(void) {
     Gc* gc = malloc(sizeof(Gc));
     if (!gc) {
         perror("ggc_init: Failed to allocate GC structure");
@@ -123,7 +123,7 @@ Gc* ggc_init(void) {
     return gc;
 }
 
-void ggc_destroy(Gc* gc) {
+void gc_destroy(Gc* gc) {
     if (!gc) return;
     
     if (gc->stack) {
@@ -140,21 +140,21 @@ void ggc_destroy(Gc* gc) {
 
 /* --------------------- GGC Collection and Garbage ------------------- */
 
-int ggc_free_slot(Gc* gc, size_t index) {
+int gc_free_slot(Gc* gc, size_t index) {
     if (!gc || !gc->stack) return -1;
     if (index >= gc->stack->elem_count) return -1;
     
-    return vec_rem(&gc->stack, index);
+    return vec_rem(gc->stack, index);
 }
 
 
 /* -------------------- Functions to Copy Symbols -------------------- */ 
 
 
-void* ggc_copy_value_data(Gc* gc, void* src_data, TypeTag type, void* to_space) {
+void* gc_copy_value_data(Gc* gc, void* src_data, TypeTag type, void* to_space) {
 	switch (type) {
 		case T_NIL:{
-
+			
 		}
 
 		case T_CONS:{
@@ -201,16 +201,16 @@ void* ggc_copy_value_data(Gc* gc, void* src_data, TypeTag type, void* to_space) 
 	}
 }
 
-Symbol* ggc_copy_symbol(Gc* gc, Symbol* src, char* to_space) {
+Symbol* gc_copy_symbol(Gc* gc, Symbol* src, char* to_space) {
 
 }
 
 /* ------------------------- Garbage collection ------------------- */
 
-void ggc_major_collect(Gc *gc) {
+void gc_major_collect(Gc *gc) {
 
 }
 
-void ggc_minor_collect(Gc* gc) {
+void gc_minor_collect(Gc* gc) {
 
 }
