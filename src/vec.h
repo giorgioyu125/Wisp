@@ -96,17 +96,11 @@ int vec_rem(Vec *v_ptr, const void *value);
 /**
  * @brief Reduce the pre-allocated capacity of the vector to `newcap`.
  *
- * Shrinking is only performed when `newcap` is smaller than the current
- * `maxcap` and greater than or equal to the current number of stored elements
- * (`elem_num`).  The underlying storage is **not** reallocated; instead the
- * function simply adjusts bookkeeping fields.  Thus the single-malloc
- * invariant is preserved.
- *
- * @param v_ptr  Pointer to an existing vector.
+ * @param v_ptr  Pointer to a pointer to an existing vector.
  * @param newcap Desired new capacity (in elements).
  *
- * @retval 0  Capacity successfully updated.
- * @retval -1 An error occurred (e.g., invalid input, allocation failure).
+ * @retval 0   Capacity successfully updated.
+ * @retval -1  An error occurred (e.g., invalid input, allocation failure).
  */
 int vec_shrink(Vec** vec, size_t newcap);
 

@@ -1,7 +1,5 @@
 /**
- * @file ggc.h
- * @brief Generational Garbage Collector for LISP DSL
- * @details Implements a copying GC for nursery and mark-compact for old generation
+ * @file symtab.h
  */
 #ifndef SYMTAB_H
 #define SYMTAB_H

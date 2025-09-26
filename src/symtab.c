@@ -1,6 +1,5 @@
 /*
- * @file symtab.c (Generational Garbage Collector)
- * @brief Simple implementation of a Garbage Collector for Wisp.
+ * @file symtab.c
 */
 
 #include <stddef.h>
