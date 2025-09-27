@@ -10,7 +10,7 @@
 
 /* -------------------------- VECTOR --------------------- */
 
-Vec* vec_create(size_t elem_size, size_t initial_capacity) {
+Vec* vec_new(size_t elem_size, size_t initial_capacity) {
     size_t total_size = sizeof(Vec) + (elem_size * initial_capacity);
     Vec* v_ptr = (Vec*)malloc(total_size);
     
@@ -43,7 +43,7 @@ int vec_push(Vec** v_ptr, const void* value) {
         if (!new_vec) return -2;
 
         new_vec->maxcap = newcap;
-        new_vec->bump_ptr = (char*)(new_vec + 1) + (vec->elem_num * vec->elem_size);
+        new_vec->bump_ptr = (char*)(new_vec + 1) + (new_vec->elem_num * new_vec->elem_size);
 
         *v_ptr = new_vec;
     }
@@ -120,7 +120,7 @@ int vec_shrink(Vec** vec, size_t newcap) {
     }
 
     new_vec->maxcap = newcap;
-    new_vec->bump_ptr = (char*)(new_vec + 1) + (v_ptr->elem_num * v_ptr->elem_size);
+    new_vec->bump_ptr = (char*)(new_vec + 1) + (new_vec->elem_num * new_vec->elem_size);
 
     *vec = new_vec;
 

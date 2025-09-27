@@ -9,7 +9,7 @@
 
 
 #ifndef GROWTH_FACTOR
-#define GROWTH_FACTOR 2  ///> Default: double capacity
+#define GROWTH_FACTOR 2  ///> Default: 2
 #endif
 
 /**
@@ -41,7 +41,7 @@ typedef struct Vec{
  * @return Pointer to a valid `Vec` on success.
  * @retval NULL   Allocation failed (`errno` is set by `malloc`).
  */
-Vec* vec_new(size_t maxcap, size_t elem_size);
+Vec* vec_new(size_t elem_size, size_t initial_capacity);
 
 
 /**
