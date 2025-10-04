@@ -7,9 +7,10 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "vec.h"
-
+#include "ggc.h"
 
 /**
  * @brief A table that stores every unique symbol, ensuring that each symbol name 
@@ -17,7 +18,7 @@
  */
 typedef struct Vec SymTab;
 
-/* --------------------          Closures and Env         -------------------- */
+/* ----------------------------- Closures and Env ---------------------------- */
 
 /**
  * @brief Environment frame for lexical scoping and closures.
@@ -36,7 +37,6 @@ typedef enum TypeTag{
 	T_STRING,
 	T_FLOAT,
 	T_BOOL,
-	T_VECTOR,
 	T_FUNCTION,
 	T_MACRO,
 	T_SPECIAL_FORM
@@ -49,78 +49,53 @@ typedef enum EvalKind{
 	EK_SPECIAL 
 } EvalKind;
 
-typedef enum func_flags{
-	F_IMMUTABLE     = 1u << 0,
-	F_PURE          = 1u << 1,
-	F_PRIMITIVE     = 1u << 2,
-	F_VARIADIC      = 1u << 3,
-	F_PINNED        = 1u << 4,
-	F_EXTERNAL      = 1u << 5,
-	F_CONST_BINDING = 1u << 6
-} func_flags;
-
 typedef struct arity_info {
 	size_t min_arity;
 	size_t max_arity;
 } arity_info;
 
-typedef enum gc_colors{
-	GC_COLOR_WHITE,
-	GC_COLOR_GRAY,
-	GC_COLOR_BLACK
-} gc_colors;
-
-
-typedef struct GCInfo{
-	size_t gen;
-	size_t age;
-	gc_colors color;
-
-	size_t obj_size;
-} GCInfo;
-
 
 typedef enum flags {
-    NO_FLAGS,         ///< No special flags are set.
-    immutable,        ///< The object cannot be modified after creation.
-    pure,             ///< Function has no side effects (output depends only on inputs).
-    primitive,        ///< Represents a primitive type (e.g., integer, boolean).
-    variadic,         ///< Function accepts variable arguments (e.g., printf-style).
-    pinned,           ///< Memory is pinned; cannot be moved by GC/allocator.
-    external,         ///< Defined in another compilation unit/external library.
-    const_binding,    ///< Binding is constant (like C's `const`).
-    reachable,        ///< Object is reachable from the root set (during GC).
-    finalizer,        ///< Object has a finalizer (needs cleanup before collection).
-    has_pointers,     ///< Object contains pointers to other objects (GC must traverse).
-    small,            ///< Object is small (optimization hint for allocator).
-    large,            ///< Object is large (allocated in special region).
-    atomic,           ///< Object supports atomic operations (concurrency).
-    deprecated,       ///< Object is deprecated (may be collected early).
-    transient,        ///< Object is short-lived (likely to die young).
-    root,             ///< Object is a root (global/static/stack variable).
-    scanned,          ///< Object was scanned in the current GC cycle.
-    precise,          ///< Object layout is precisely known (no conservative scanning).
-    no_scan,          ///< Object should not be scanned (e.g., raw data).
-    concurrent,       ///< Object can be accessed concurrently (requires synchronization).
-    immortal,         ///< Object never becomes garbage (e.g., static/global).
-    nursery_allocated,///< Object was allocated in the young generation.
-    old_gen_allocated ///< Object was promoted to the old generation.
+    NO_FLAGS = 0,               ///< No special flags are set.
+    immutable = 1 << 0,         ///< The object cannot be modified after creation.
+    pure = 1 << 1,              ///< Function has no side effects (output depends only on inputs).
+    primitive = 1 << 2,         ///< Represents a primitive type (e.g., integer, boolean).
+    variadic = 1 << 3,          ///< Function accepts variable arguments (e.g., printf-style).
+    pinned = 1 << 4,            ///< Memory is pinned; cannot be moved by GC/allocator.
+    external = 1 << 5,          ///< Defined in another compilation unit/external library.
+    const_binding = 1 << 6,     ///< Binding is constant (like C's `const`).
+    reachable = 1 << 7,         ///< Object is reachable from the root set (during GC).
+    finalizer = 1 << 8,         ///< Object has a finalizer (needs cleanup before collection).
+    has_pointers = 1 << 9,      ///< Object contains pointers to other objects (GC must traverse).
+    small = 1 << 10,            ///< Object is small (optimization hint for allocator).
+    large = 1 << 11,            ///< Object is large (allocated in special region).
+    atomic = 1 << 12,           ///< Object supports atomic operations (concurrency).
+    deprecated = 1 << 13,       ///< Object is deprecated (may be collected early).
+    transient = 1 << 14,        ///< Object is short-lived (likely to die young).
+    root = 1 << 15,             ///< Object is a root (global/static/stack variable).
+    scanned = 1 << 16,          ///< Object was scanned in the current GC cycle.
+    precise = 1 << 17,          ///< Object layout is precisely known (no conservative scanning).
+    no_scan = 1 << 18,          ///< Object should not be scanned (e.g., raw data).
+    concurrent = 1 << 19,       ///< Object can be accessed concurrently (requires synchronization).
+    immortal = 1 << 20,         ///< Object never becomes garbage (e.g., static/global).
+    nursery_allocated = 1 << 21,///< Object was allocated in the young generation.
+    old_gen_allocated = 1 << 22 ///< Object was promoted to the old generation.
 } flags;
 
+// Pack multiple flags into a single bitmask
 flags pack_flags(flags first_flag, ...) {
     va_list args;
-    flags combined = first_flag ? first_flag : NO_FLAGS;
-    
+    flags combined = first_flag;
+
     va_start(args, first_flag);
     flags next_flag;
     while ((next_flag = va_arg(args, flags)) != 0) {
         combined |= next_flag;
     }
     va_end(args);
-    
+
     return combined;
 }
-
 
 /** @brief Check if a flag is identical to the bit mask. */
 static inline int  tst_flag(uint32_t flags, uint32_t bit) { return (flags & bit) != 0; }
@@ -158,7 +133,6 @@ uint32_t hash(const char* name) {
 }
 
 
-
 /**
  * @brief Represents a symbol (identifier) in the language.
  * @details A symbol is a unique object that represents a name. It holds
@@ -166,106 +140,129 @@ uint32_t hash(const char* name) {
  *          value, arity (if it's a function), flags, and GC information.
  */
 typedef struct Symbol {
+	/* Runtime metadata */
+	GCInfo gcinfo;     /* @brief Information for the Garbage Collector. */
+
 	/* Core identification data */
-	const char* name;
-	/* @brief The name of the symbol (as a string). */
+	const char* name;  /* @brief The name of the symbol (as a string). */
 
-	size_t len;
-	/* @brief The length of the name. */ 
+	size_t len;        /* @brief The length of the name. */ 
 
-	uint32_t hash;
-	/* @brief Pre-calculated hash of the name for fast lookups. */
-
+	uint32_t hash;     /* @brief Pre-calculated hash of the name for fast lookups. */
 
 	/* Semantic metadata */ 
-	TypeTag type;
-	/* @brief The high-level type of the symbol. @see TypeTag */ 
+	TypeTag type;      /* @brief The high-level type of the symbol. @see TypeTag */ 
 
-	EvalKind eval;
-	/* @brief How the evaluator should handle this symbol. @see EvalKind */
+	EvalKind eval;     /* @brief How the evaluator should handle this symbol. @see EvalKind */
 
-	uint32_t flags;     
-	/* @brief A bitmask of additional properties. @see flags */
+	uint32_t flags;     /* @brief A bitmask of additional properties. @see flags */
+    union value{
+        void* value_ptr;
+        int32_t int_val;
+        double float_val;
+        bool bool_val;
+    }value;             /* @brief A pointer to the value of the symbol. @see ConsData struct */
 
-
-	void* value_ptr; 
-	/* @brief Pointers to data and code. @see ConsData and other 
-	 * structs below to acknowledge the full list of native datatypes.*/
-
-	EnvFrame* env_ptr;
-	/* @brief Pointer to the closure environment (for functions). */
-
-	/* Runtime metadata */
-	GCInfo gcinfo;    
-	/* @brief Information for the Garbage Collector. */
+	EnvFrame* env_ptr;  /* @brief Pointer to the closure environment (for functions). */
 } Symbol;
 
-
-/* Symbol types implementation, this goes in value_ptr of symbol. @see Symbol.value_ptr. 
- * T_NIL does not have a struct value, its simply and always NULL. If a Symbol of type NIL 
+/* Symbol types implementation, this goes in value_ptr of symbol. @see Symbol.value.value_ptr
+ * T_NIL does not have a valid pointer value, its simply and always NULL. If a Symbol of type NIL
  * have a non-null pointer there is surely a bug.
  **/
 typedef struct ConsData {
+    GCInfo gcinfo;
     Symbol* car;
     Symbol* cdr;
 } ConsData;
+#define T_CONS_REF_NUM 2
 
 typedef struct SymData {
+    GCInfo gcinfo;
 	Symbol* sym;
 } SymData;
-
-typedef struct IntData {
-    int value;
-} IntData;
+#define T_SYM_REF_NUM 1
 
 typedef struct StringData {
-    char* str;
-    size_t length;
-    size_t capacity;
+    GCInfo gcinfo;
+    char str[];
 } StringData;
-
-typedef struct FloatData {
-    double value;
-} FloatData;
-
-typedef struct VectorData {
-	Vec* vec;    ///> This vec should be managed with the vec.h functions
-} VectorData;
-
-typedef struct BoolData {
-    bool value;
-} BoolData;
-
 
 typedef Symbol* (*CFunctionFn)(Symbol* args, EnvFrame* env);
 typedef struct FunctionData {
+    GCInfo gcinfo;
     Symbol* params;        ///> Parameter list (NULL for some functions, note that zero-arg 
 						   ///  is not the same as having nil as an arg. Nil is still an empty symbol, valueless)
-    
+
     bool is_c_func;        ///> true = C function, false = LISP function
-    
+
     union {
         struct {
             Symbol* body;           ///> Body of the LISP function
             EnvFrame* closure_env;  ///> Captured Env
         } lisp;
-        
+
         struct {
-            CFunctionFn fn;         ///> Normal C function  
+            CFunctionFn fn;         ///> Normal C function
             const char* c_name;     ///> Name for debug
         } c;
     } func;
-    
-	arity_info arity;				///> Packed min/max arity.
+
+	arity_info arity;               ///> min/max arity of a function.
 } FunctionData;
+#define T_FUNC_REF_NUM 3
 
 
 typedef struct MacroData {
+    GCInfo gcinfo;
     Symbol* params;    ///> Parameter list
     Symbol* body;      ///> Macro expansion template
 } MacroData;
+#define T_MACRO_REF_NUM 2
 
-typedef Symbol* (*SpecialFormFn)(Symbol* args, EnvFrame* env);
+#define MAX_REF 16
+
+/* ------------ Functions to Extract References from Symbols ------ */
+
+/**
+ * @brief Extract references from a cons cell (car and cdr).
+ * @param obj Pointer to the cons cell object
+ * @param count Output parameter for number of references (always 2)
+ * @return Array of pointers to the car and cdr fields
+ */
+void*** get_reference_from_cons(void* obj, size_t* count);
+
+/**
+ * @brief Extract references from a symbol (value, plist, name).
+ * @param obj Pointer to the symbol object
+ * @param count Output parameter for number of references (always 1)
+ * @return Array of pointers to symbol's reference fields
+ */
+void*** get_reference_from_symbol(void* obj, size_t* count);
+
+/**
+ * @brief Extract references from a vector (all elements).
+ * @param obj Pointer to the vector object
+ * @param count Output parameter for number of elements in vector
+ * @return Array of pointers to each vector element
+ */
+void*** get_reference_from_vector(void* obj, size_t* count);
+
+/**
+ * @brief Extract references from a function (body, params, environment).
+ * @param obj Pointer to the function object
+ * @param count Output parameter for number of references (typically 2)
+ * @return Array of pointers to function's reference fields
+ */
+void*** get_reference_from_function(void* obj, size_t* count);
+
+/**
+ * @brief Extract references from a macro (body, transformer, environment).
+ * @param obj Pointer to the macro object
+ * @param count Output parameter for number of references (typically 2)
+ * @return Array of pointers to macro's reference fields
+ */
+void*** get_reference_from_macro(void* obj, size_t* count);
 
 /* -------------------- Symbol Table Lifetime -------------------- */
 
@@ -288,18 +285,17 @@ void symtab_destroy(SymTab** st);
 /**
  * @brief Allocates and interns a new symbol (automatically becomes root).
  * @param st Symbol table context
- * @param type Object type for GC tracing
  * @param size Size of object to allocate
  * @return Pointer to allocated and interned symbol
  */
-Symbol* symtab_intern(SymTab* st, size_t size);
+Symbol* symtab_intern(Gc* gc, SymTab* st, char* name);
 
 /**
  * @brief Removes symbol from root set (becomes eligible for collection).
  * @param st Symbol table context  
  * @param symbol Symbol to remove
  */
-void symtab_remove(SymTab* st, Symbol* symbol);
+static inline void symtab_remove(SymTab* st, Symbol* symbol) { vec_rem(st, symbol); }
 
 /**
  * @brief Binds name to symbol for lookup.
@@ -307,7 +303,11 @@ void symtab_remove(SymTab* st, Symbol* symbol);
  * @param name Variable name
  * @param symbol Symbol to bind
  */
-void symtab_bind(SymTab* st, char* name, Symbol* symbol);
+static inline void symtab_bind(SymTab* st, char* name, Symbol* symbol) {
+    if (!symbol || !name || !st) return;
+
+    symbol->name = name;
+}
 
 /**
  * @brief Looks up symbol by name.
@@ -320,9 +320,9 @@ Symbol* symtab_lookup(SymTab* st, const char* name);
 /**
  * @brief Removes name binding (symbol remains alive if referenced elsewhere).
  * @param st Symbol table context
- * @param name Variable name to unbind
+ * @param symbol Variable pointer to unbind
  */
-void symtab_unbind(SymTab* st, char* name);
+void symtab_unbind(SymTab* st, Symbol* symbol) { if(symbol || st) symbol->name = NULL;}
 
 
 #endif

@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
+
 #include "vec.h"
 
 /* -------------------- Constants and Configuration -------------------- */
@@ -60,34 +61,59 @@ typedef struct Heap {
     size_t heap_memory_size;   ///< Total size of memory block
 } Heap;
 
+
+/**
+ * @brief Given an object, return the addresses of all GC-managed pointer fields
+ *        inside it ("pointer slots") so the GC can read/update them (e.g., when
+ *        fixing pointers to forwarded objects).
+ *
+ * Signature:
+ *   typedef void*** (*extract_reference)(void* obj, size_t* out_count);
+ *
+ * @param[in] obj Pointer to the object's payload (start of the object, not the GC header).
+ * @param[out] out_count Set to the number of pointer slots found.
+ *
+ * @return:
+ *   A pointer to the first element of an array of pointer slots.
+ *   - Each slot is a void**: the address of a pointer field inside obj.
+ *   - The GC may read/write through each slot: void* p = *slot; *slot = new_p;
+ *   - If there are no GC pointers, set *out_count = 0 and return NULL.
+ *
+ * @notes:
+ *   - List every GC-managed pointer field exactly once.
+ *   - Slots must point into 'obj' (i.e., be addresses of its fields).
+ */
+typedef void*** (*extract_reference)(void*, size_t*);
+
 /**
  * @brief Main garbage collector context.
  */
 typedef struct Gc {
     Heap* heap;					   ///< Managed heap
     Vec* stack;					   ///< Root stack for GC scanning
-    
+
     /* Thresholds */
     size_t nursery_alloc_threshold;    ///< Threshold to trigger minor GC
     size_t old_gen_alloc_threshold;    ///< Threshold to trigger major GC
-    
+
     uint8_t promotion_age_threshold;   ///< Age threshold for promotion to old gen
     bool collection_in_progress;       ///< Flag to prevent recursive collection
+    
+    extract_reference extract_refs;    ///< This function is the default needed to support correctly forwarding_ptr
 } Gc;
 
-
-
-/* -------------------- Root Management -------------------- */
-
-/**
- * @brief Registers a root pointer with the garbage collector.
- * @param gc Garbage collector context
- * @param root Pointer to the root object pointer
+/*
+ * @struct This structs contains the needed information
+ *         to handle any object by the GC.
  */
-static inline void ggc_add_root(Gc* gc, void* root) {
-    if (!gc || !gc->stack || !root) return;
-    vec_add(&gc->stack, root);
-}
+typedef struct GCInfo{
+	size_t gen;
+	size_t age;
+
+    size_t obj_size;      ///< The total size of the object ahead this struct
+
+    char* forwarding_ptr; ///< NULL if not forwarded
+} GCInfo;
 
 /* -------------------- Heap Management -------------------- */
 
@@ -127,18 +153,18 @@ static inline bool is_in_nursery(Gc* gc, void* ptr) {
     return in_eden || in_s0 || in_s1;
 }
 
+static inline bool is_in_old(Gc* gc, void* ptr) {
+    if (!ptr) return false;
+    
+    OldGen* old = &gc->heap->old_gen;
+    char* p = (char*)ptr;
+    
+    bool result = (p >= old->region.start && p < old->region.end); 
+    return result;
+}
+
 /* -------------------- Utility Functions -------------------- */
 
-/**
- * @brief Aligns a pointer up to the specified alignment.
- * @param p Pointer to align
- * @param a Alignment (must be power of 2)
- * @return Aligned pointer
- */
-static inline char* align_up_ptr(char* p, size_t a) {
-    uintptr_t x = (uintptr_t)p;
-    return (char*)((x + (a - 1)) & ~(a - 1));
-}
 
 /**
  * @brief Sets up a memory region.
@@ -165,7 +191,7 @@ static inline size_t memregion_size(const MemRegion* r) {
 
 // GC Configuration
 #ifndef GGC_EDEN_SIZE
-#define GGC_EDEN_SIZE      (2 * 1024 * 1024)   // 1MB
+#define GGC_EDEN_SIZE      (2 * 1024 * 1024)   // 2MB
 #endif
 
 #ifndef GGC_SURVIVOR_SIZE  
@@ -184,6 +210,22 @@ static inline size_t memregion_size(const MemRegion* r) {
 #define GGC_STACK_LEN      MINIMUM_STACK_LEN    // 1K objects
 #endif
 
+/* --------------------- GGC Collection and Garbage ------------------- */
+
+/**
+ * @brief Performs a minor garbage collection on the nursery.
+ * @param gc Garbage collector context
+ */
+void ggc_minor_collect(Gc* gc);
+
+/**
+ * @brief Performs a major garbage collection on the old generation.
+ * @param gc Garbage collector context
+ */
+void ggc_major_collect(Gc* gc);
+
+/* ----------------------------- GCC Lifetime ------------------------- */
+
 /**
  * @brief Initializes garbage collector with heap and symbol table.
  * @param gc Garbage collector context to initialize
@@ -198,25 +240,59 @@ Gc* ggc_init(void);
  */
 void ggc_destroy(Gc* gc);
 
-/* --------------------- GGC Collection and Garbage ------------------- */
+/* -------------------------- Allcotion Helpers ----------------------- */
+
+/*
+ * @brief This function returns true if the obj_body is present in the 
+ *        MemRegion given to the function itself.
+ */
+bool is_in_from_space(Gc* gc, void* obj_body, MemRegion* from_survivor);
+
+static inline GCInfo* gc_header_from_obj(void* obj) {
+    return (GCInfo*)((char*)obj - sizeof(GCInfo));
+}
+
+/*
+ * @brief aligns a block of memory by a nonzero power of two.
+ * @param the power of two that you want to use. (2, 4, 8...)
+ * @param n the number that needs rounding to the next power of two
+ * @return the aligned value.
+ */
+static inline size_t align_up_size(size_t n, size_t a) {
+    return (n + (a - 1)) & ~(a - 1);
+}
 
 /**
- * @brief Free only one element in the stack of the Gc.
- * @param gc Garbage collector context
+ * @brief Aligns a pointer up to the specified alignment.
+ * @param p Pointer to align
+ * @param a Alignment (must be power of 2)
+ * @return Aligned pointer
  */
-int ggc_free_slot(Gc* gc, size_t index);
+static inline char* align_up_ptr(char* p, size_t a) {
+    uintptr_t x = (uintptr_t)p;
+    return (char*)((x + (a - 1)) & ~(a - 1));
+}
 
-/**
- * @brief Performs a minor garbage collection on the nursery.
- * @param gc Garbage collector context
+/*
+ * @brief Allocate a new chunck of memory in the Nursery (Eden).
+ * @param size The size of the space that needs to be allocated
+ * @param gc a pointer to the GC struct.
+ * @retval NULL on an error
+ * @return A valid pointer to the allocated space
  */
-void ggc_minor_collect(Gc* gc);
+void* gc_alloc_nursery(Gc* gc, size_t size);
 
-/**
- * @brief Performs a major garbage collection on the old generation.
- * @param gc Garbage collector context
+/*
+ * @brief Allocate a new chunck of memory in the OldGen.
+ * @param size The size of the space that needs to be allocated
+ * @param gc a pointer to the GC struct.
+ * @retval NULL on an error
+ * @return A valid pointer to the allocated space
  */
-void ggc_major_collect(Gc* gc);
+void* gc_alloc_old(Gc* gc, size_t size);
 
+/* ---------------------------- Main API ------------------------------ */
+
+void* gc_alloc(Gc* gc, size_t size, extract_reference extract_refs);
 
 #endif /* GGC_H */

@@ -59,6 +59,83 @@ Vec* vec_new(size_t elem_size, size_t initial_capacity);
  */
 int vec_push(Vec** v_ptr, const void* value);
 
+/**
+ * @brief Remove the last element from a vector without retrieving it.
+ * 
+ * @details Removes the last element from the vector by decrementing the element
+ *          count. The memory is optionally cleared but remains allocated for 
+ *          future use. This is an O(1) operation.
+ * 
+ * @param[in,out] v_ptr Pointer to the vector to modify.
+ * 
+ * @return 0 on success, negative error code on failure:
+ *         - `-1`: NULL vector pointer or the Vec is empty
+ * 
+ * @note The vector's capacity remains unchanged. The memory is available
+ *       for reuse on the next push operation.
+ * 
+ * @warning This function does not return the popped value. Use vec_pop_get()
+ *          if you need to retrieve the element before removal.
+ * 
+ * @see vec_pop_get() for retrieving the element value
+ */
+int vec_pop_discard(Vec* v_ptr);
+
+/**
+ * @brief Remove the last element from a vector and copy its value.
+ * 
+ * @details Removes the last element from the vector by decrementing the element
+ *          count, optionally copying the element's value to the provided buffer
+ *          before removal. This is an O(1) operation.
+ * 
+ * @param[in,out] v_ptr     Pointer to the vector to modify.
+ * @param[out]    out_value Buffer to receive the popped element's value.
+ *                          Can be NULL if the value is not needed.
+ *                          Must be at least v_ptr->elem_size bytes.
+ * 
+ * @return 0 on success, negative error code on failure:
+ *         - `-1`: NULL vector pointer  
+ *         - `-2`: Vector is empty (no elements to pop)
+ *         - `-3`: Invalid parameters (e.g., vector not initialized)
+ * 
+ * @note If out_value is NULL, behaves identically to vec_pop_discard().
+ * @note The caller must ensure out_value points to sufficient memory
+ *       (at least v_ptr->elem_size bytes) if not NULL.
+ * 
+ * @warning The out_value buffer must be properly aligned for the element type.
+ *          For example, if storing pointers, it must be aligned for pointer access.
+ * 
+ * @see vec_pop_discard() for discarding without retrieval
+ * @see vec_peek() for accessing without removal
+ */
+int vec_pop_get(Vec* v_ptr, void* out_value);
+
+/**
+ * @brief Get pointer to the last element without removing it.
+ * 
+ * @param v_ptr Vector to peek into.
+ * @return Pointer to last element, or NULL if empty/invalid.
+ * 
+ * @note The returned pointer is valid until the next vector operation.
+ */
+void* vec_peek(Vec* v_ptr);
+
+/**
+ * @brief Copy the last element into a buffer without removing it.
+ * 
+ * @param v_ptr     Vector to peek into.
+ * @param out_value Buffer to receive the element (must be elem_size bytes).
+ * @return 0 on success, -1 on error (NULL/empty vector or NULL buffer).
+ * 
+ * @code
+ * int value;
+ * if (vec_peek_get(&stack, &value) == 0) {
+ *     // value now contains copy of top element
+ * }
+ * @endcode
+ */
+int vec_peek_get(Vec* v_ptr, void* out_value);
+
 
 /**
  * @brief Delete the **first** occurrence of an element whose bytes match
@@ -119,7 +196,6 @@ int vec_shrink(Vec** vec, size_t newcap);
 int vec_free(Vec **v_ptr);
 
 
-
 /**
  * @brief Get a pointer to the element at index `idx`.
  *
@@ -144,6 +220,15 @@ void* vec_at(const Vec* v_ptr, size_t idx);
  */
 int vec_get(const Vec* v_ptr, size_t idx, void* out);
 
+/**
+ * @brief Copy a whole vector in a new memory location. 
+ *
+ * @param v_ptr Vector to copy
+ *
+ * @return A pointer to the new Vec.
+ * @retval NULL if the operation failed.
+ */
+Vec* vec_dup(const Vec* v_ptr);
 
 /**
  * @brief Return number of elements currently stored.

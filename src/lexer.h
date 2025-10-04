@@ -24,6 +24,7 @@ typedef enum {
     TOKEN_IDENTIFIER,///< Identifier (e.g., 'foo', 'bar')
     TOKEN_QUOTE,     ///< Quote character '\''
     TOKEN_COMMA,     ///< Comma ','
+	TOKEN_KEYWORD,   ///< 
     TOKEN_ERROR      ///< Invalid or unrecognized token
 } TokenType;
 

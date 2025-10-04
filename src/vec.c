@@ -2,7 +2,6 @@
  * @file vec.c
  * @brief A simple vector library for Wisp.
 */
-
 #include "vec.h"
 
 #include <stdlib.h>
@@ -13,15 +12,15 @@
 Vec* vec_new(size_t elem_size, size_t initial_capacity) {
     size_t total_size = sizeof(Vec) + (elem_size * initial_capacity);
     Vec* v_ptr = (Vec*)malloc(total_size);
-    
+
     if (!v_ptr) return NULL;
-    
+
     v_ptr->elem_num = 0;
     v_ptr->elem_size = elem_size;
     v_ptr->maxcap = initial_capacity;
-    
+
     v_ptr->bump_ptr = (char*)(v_ptr + 1);
-    
+
     return v_ptr;
 }
 
@@ -56,6 +55,46 @@ int vec_push(Vec** v_ptr, const void* value) {
     return 0;
 }
 
+int vec_pop_discard(Vec* v_ptr) {
+    if (!v_ptr || v_ptr->elem_num == 0) return -1;
+
+    v_ptr->elem_num--;
+
+    char* last_elem = v_ptr->bump_ptr + (v_ptr->elem_num * v_ptr->elem_size);
+    memset(last_elem, 0, v_ptr->elem_size);
+
+    return 0;
+}
+
+int vec_pop_get(Vec* v_ptr, void* out_value) {
+    if (!v_ptr || v_ptr->elem_num == 0) return -1;
+
+    v_ptr->elem_num--;
+    char* last_elem = v_ptr->bump_ptr + (v_ptr->elem_num * v_ptr->elem_size);
+
+    if (out_value) {
+        memcpy(out_value, last_elem, v_ptr->elem_size);
+    }
+
+    memset(last_elem, 0, v_ptr->elem_size);
+
+    return 0;
+}
+
+void* vec_peek(Vec* v_ptr) {
+    if (!v_ptr || v_ptr->elem_num == 0) return NULL;
+
+    char* last_elem = v_ptr->bump_ptr - v_ptr->elem_size;
+    return last_elem;
+}
+
+int vec_peek_get(Vec* v_ptr, void* out_value) {
+    if (!v_ptr || v_ptr->elem_num == 0 || !out_value) return -1;
+
+    char* last_elem = v_ptr->bump_ptr - v_ptr->elem_size;
+    void* result = memcpy(out_value, last_elem, v_ptr->elem_size);
+    return result ? 0 : -1;
+}
 
 int vec_del(Vec* v_ptr, const void* value){
 	if (!v_ptr) return -1;
@@ -147,4 +186,17 @@ int vec_free(Vec** v_ptr) {
         *v_ptr = NULL;
     }
     return 0;
+}
+
+
+Vec* vec_dup(const Vec* v_ptr) {
+    if (!v_ptr) return NULL;
+    size_t total_size = sizeof(Vec) + v_ptr->elem_size * v_ptr->elem_num;
+
+    Vec* new_vec = malloc(total_size);
+    if (!new_vec) return NULL;
+
+    memcpy(new_vec, v_ptr, total_size);
+
+    return new_vec;
 }
