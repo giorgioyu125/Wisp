@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 /* -------------------------- VECTOR --------------------- */
 
@@ -96,9 +97,9 @@ int vec_peek_get(Vec* v_ptr, void* out_value) {
     return result ? 0 : -1;
 }
 
-int vec_del(Vec* v_ptr, const void* value){
+int vec_del(Vec* v_ptr, const void* value) {
 	if (!v_ptr) return -1;
-	if (v_ptr->elem_num == 0) return -2;
+	if (v_ptr->elem_num <= 0) return -2;
 
 	char* current = v_ptr->bump_ptr;
 	for (size_t i = 0; i < v_ptr->elem_num; i++, current += v_ptr->elem_size) {
@@ -113,6 +114,66 @@ int vec_del(Vec* v_ptr, const void* value){
 	return -3;
 }
 
+void* vec_find(const Vec* restrict v_ptr, const void* restrict value) {
+    if (!v_ptr || !v_ptr->bump_ptr || !value || v_ptr->elem_num == 0) {
+        return NULL;
+    }
+
+    const unsigned char* cur = v_ptr + sizeof(Vec);
+    const size_t elem_size = v_ptr->elem_size;
+    const size_t elem_num = v_ptr->elem_num;
+
+    switch (elem_size) {
+        case 1: {
+            const uint8_t val = *(const uint8_t*)value;
+            for (size_t i = 0; i < elem_num; ++i) {
+                if (((const uint8_t *)cur)[i] == val) {
+                    return (void *)(cur + i);
+                }
+            }
+            return NULL;
+        }
+        case 2: {
+            const uint16_t val = *(const uint16_t*)value;
+            const uint16_t *ptr = (const uint16_t*)cur;
+            for (size_t i = 0; i < elem_num; ++i) {
+                if (ptr[i] == val) {
+                    return (void *)(&ptr[i]);
+                }
+            }
+            return NULL;
+        }
+        case 4: {
+            const uint32_t val = *(const uint32_t*)value;
+            const uint32_t *ptr = (const uint32_t*)cur;
+            for (size_t i = 0; i < elem_num; ++i) {
+                if (ptr[i] == val) {
+                    return (void *)(&ptr[i]);
+                }
+            }
+            return NULL;
+        }
+        case 8: {
+            const uint64_t val = *(const uint64_t*)value;
+            const uint64_t *ptr = (const uint64_t*)cur;
+            for (size_t i = 0; i < elem_num; ++i) {
+                if (ptr[i] == val) {
+                    return (void *)(&ptr[i]);
+                }
+            }
+            return NULL;
+        }
+    }
+
+    const unsigned char* end = cur + elem_num * elem_size;
+    for (; cur < end; cur += elem_size) {
+        if (memcmp(cur, value, elem_size) == 0) {
+            return (void *)cur;
+        }
+    }
+
+    return NULL;
+}
 
 int vec_rem(Vec* v_ptr, const void* value) {
     if (!v_ptr) return -1;

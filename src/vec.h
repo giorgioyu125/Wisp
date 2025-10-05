@@ -120,6 +120,24 @@ int vec_pop_get(Vec* v_ptr, void* out_value);
  */
 void* vec_peek(Vec* v_ptr);
 
+
+/**
+ * @brief Finds the first occurrence of a value in a vector.
+ *
+ * This optimized version uses specialization for common element sizes (1, 2, 4, 8 bytes)
+ * to replace the generic memcmp with faster, direct integer comparisons. For all other
+ * sizes, it falls back to the reliable memcmp.
+ *
+ * The `restrict` keyword is a hint to the compiler that the memory pointed to by
+ * v_ptr and value will not overlap, allowing for more aggressive optimizations.
+ *
+ * @param v_ptr A constant pointer to the Vec structure.
+ * @param value A constant pointer to the value to search for.
+ * @return A pointer to the first matching element, or NULL if not found or on error.
+ */
+void *vec_find(const Vec *restrict v_ptr, const void *restrict value);
+
+
 /**
  * @brief Copy the last element into a buffer without removing it.
  * 
