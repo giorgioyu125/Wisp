@@ -61,9 +61,10 @@ int vec_pop_discard(Vec* v_ptr) {
 
     v_ptr->elem_num--;
 
-    char* last_elem = v_ptr->bump_ptr + (v_ptr->elem_num * v_ptr->elem_size);
+    char* last_elem = v_ptr->bump_ptr - v_ptr->elem_size;
     memset(last_elem, 0, v_ptr->elem_size);
 
+    v_ptr->bump_ptr -= v_ptr->elem_size;
     return 0;
 }
 
@@ -71,14 +72,12 @@ int vec_pop_get(Vec* v_ptr, void* out_value) {
     if (!v_ptr || v_ptr->elem_num == 0) return -1;
 
     v_ptr->elem_num--;
-    char* last_elem = v_ptr->bump_ptr + (v_ptr->elem_num * v_ptr->elem_size);
-
+    char* last_elem = v_ptr->bump_ptr - v_ptr->elem_size;
     if (out_value) {
         memcpy(out_value, last_elem, v_ptr->elem_size);
     }
-
+    v_ptr->bump_ptr -= v_ptr->elem_size;
     memset(last_elem, 0, v_ptr->elem_size);
-
     return 0;
 }
 
@@ -101,7 +100,7 @@ int vec_del(Vec* v_ptr, const void* value) {
 	if (!v_ptr) return -1;
 	if (v_ptr->elem_num <= 0) return -2;
 
-	char* current = v_ptr->bump_ptr;
+    char* current = (char*)(v_ptr) + sizeof(Vec);
 	for (size_t i = 0; i < v_ptr->elem_num; i++, current += v_ptr->elem_size) {
 	    if (memcmp(current, value, v_ptr->elem_size) == 0) {
 	        size_t bytes_to_move = (v_ptr->elem_num - i - 1) * v_ptr->elem_size;
@@ -119,7 +118,7 @@ void* vec_find(const Vec* restrict v_ptr, const void* restrict value) {
         return NULL;
     }
 
-    const unsigned char* cur = v_ptr + sizeof(Vec);
+    const unsigned char* cur = (unsigned char*)(v_ptr) + sizeof(Vec);
     const size_t elem_size = v_ptr->elem_size;
     const size_t elem_num = v_ptr->elem_num;
 
@@ -179,18 +178,19 @@ int vec_rem(Vec* v_ptr, const void* value) {
     if (!v_ptr) return -1;
 
     int count = 0;
-    char* current = v_ptr->bump_ptr;
+    char* data_start = (char*)(v_ptr) + sizeof(Vec);
     size_t elem_size = v_ptr->elem_size;
-
     for (size_t i = 0; i < v_ptr->elem_num; ) {
+        char* current = data_start + (i * elem_size);
         if (memcmp(current, value, elem_size) == 0) {
             size_t bytes_to_move = (v_ptr->elem_num - i - 1) * elem_size;
-            memmove(current, current + elem_size, bytes_to_move);
+            if (bytes_to_move > 0) {
+                memmove(current, current + elem_size, bytes_to_move);
+            }
             v_ptr->elem_num--;
             count++;
         } else {
             i++;
-            current += elem_size;
         }
     }
 
@@ -230,12 +230,12 @@ int vec_shrink(Vec** vec, size_t newcap) {
 
 void* vec_at(const Vec* v_ptr, size_t idx) {
     if (!v_ptr || idx >= v_ptr->elem_num) return NULL;
-    return (char*)(v_ptr + 1) + (idx * v_ptr->elem_size);
+    return (char*)(v_ptr) + sizeof(Vec) + (idx * v_ptr->elem_size);
 }
 
 int vec_get(const Vec* v_ptr, size_t idx, void* out) {
     if (!v_ptr || !out || idx >= v_ptr->elem_num) return -1;
-    memcpy(out, (char*)(v_ptr + 1) + (idx * v_ptr->elem_size), v_ptr->elem_size);
+    memcpy(out, (char*)(v_ptr) + sizeof(Vec) + (idx * v_ptr->elem_size), v_ptr->elem_size);
     return 0;
 }
 
