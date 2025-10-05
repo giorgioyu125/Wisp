@@ -1,19 +1,19 @@
-### OuiWisp
+### Wisp
 
 A Lisp Dialect build from the ground up specifically made to help C-dev to develop their 
 compositors or GUI framework for the wayland protocol.
 
 ## Why?... just Why?
 
-This project is just for educational-porpouse only, it probably never will be ready for 
+This project is just for educational-purpose only, it probably never will be ready for 
 production because its a messy, complicated and maybe impossible experiment.
-So, please, dont critique the nature of this project because i dont even take it a as a valid 
+So, please, don't critique the nature of this project because i don't even take it a as a valid 
 option compared to simply programming C with existing libraries like wlroots, libwayland etc.
 
-Alright, picking up from there and steering toward the “functional approach to graphics” inside OuiWisp’s model.
+Alright, picking up from there and steering toward the “functional approach to graphics” inside Wisp’s model.
 
-Functional Graphics in OuiWisp
-In Symploke we can treat rendering as a pure transformation: a program reduces to a value 
+Functional Graphics in Wisp
+In Wisp we can treat rendering as a pure transformation: a program reduces to a value 
 that describes the frame, and a small “port” in the VM performs the side-effect of presenting that frame.
 
 At a high level:
@@ -35,7 +35,7 @@ people that said to me that "Lisp isnt worth it", nothing more really! I swear!
 
 # A little client-side example (schematic)
 (def output-0 (output "HDMI-A-1"))
-(def surface-0 (surface :title "OuiWisp" :size (800 600)))
+(def surface-0 (surface :title "Wisp" :size (800 600)))
 
 (render
 (pass main
