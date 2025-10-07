@@ -20,7 +20,7 @@ Vec* vec_new(size_t elem_size, size_t initial_capacity) {
     v_ptr->elem_size = elem_size;
     v_ptr->maxcap = initial_capacity;
 
-    v_ptr->bump_ptr = (char*)(v_ptr + 1);
+    v_ptr->bump_ptr = (char*)(v_ptr) + sizeof(Vec);
 
     return v_ptr;
 }
