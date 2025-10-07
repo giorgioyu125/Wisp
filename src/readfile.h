@@ -24,7 +24,7 @@
  * @warning Ownership of the memory is transferred to the caller, who must
  *			eventually free it with `free()`.
  */
-char* read_file(const char* path, size_t* len_out);
+char *read_file (const char *path, size_t *len_out);
 
 
 #endif
