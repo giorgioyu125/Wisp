@@ -16,6 +16,9 @@
 
 #include "readfile.h"
 
+#define HUGE_SIZE 10 * 1024 * 1024 ///< This is the threshold where a src file
+                                   ///  is considered Huge and needs MAP_HUGETLB
+
 
 /* -------------------- FILE READER ------------------ */
 
@@ -32,7 +35,8 @@ FileBuffer *read_file(const char *path)
     }
 
     size_t size = (size_t) st.st_size;
-    char *file = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+    char* file = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (file == MAP_FAILED)
         return NULL;
     close(fd);

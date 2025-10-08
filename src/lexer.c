@@ -25,6 +25,7 @@ Vec *lex_tokens(const char *source, size_t source_len)
             ptr++;
             continue;
         }
+
         // LPAREN
         if (c == '(') {
             Token tok = {
@@ -145,7 +146,7 @@ Vec *lex_tokens(const char *source, size_t source_len)
             continue;
         }
 
-      identifier:
+        identifier:
         c = *ptr;
         // IDENTIFIER
         if (isalpha(c) || strchr("!@#$%^&*-+=<>/?", c)) {
