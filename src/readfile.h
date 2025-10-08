@@ -6,6 +6,15 @@
 
 #include <stddef.h>
 
+/* ------------------------ FILE BUF ----------------- */
+
+typedef struct {
+    char *data;
+    size_t size;
+    bool is_mmaped;
+} FileBuffer;
+
+
 /* -------------------- FILE READER ------------------ */
 
 /**
@@ -22,9 +31,15 @@
  *         `NULL` on failure.
  *
  * @warning Ownership of the memory is transferred to the caller, who must
- *			eventually free it with `free()`.
+ *			eventually free it with `filebuffer_free()`.
  */
-char *read_file (const char *path, size_t *len_out);
+FileBuffer *read_file(const char *path);
+
+/*
+ * @brief This function frees the memory of the file read through the
+ *        read_file function by leveraging the FileBuffer struct.
+ */
+void filebuffer_free(FileBuffer * fb);
 
 
 #endif

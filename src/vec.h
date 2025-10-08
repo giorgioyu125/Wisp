@@ -9,22 +9,22 @@
 
 
 #ifndef GROWTH_FACTOR
-#define GROWTH_FACTOR 2  ///> Default: 2
+#define GROWTH_FACTOR 2         ///> Default: 2
 #endif
 
 /**
  * @struct This is the main struct of the Vector implementation
  */
-typedef struct Vec{
-	size_t elem_num;
-	size_t elem_size;
-	size_t maxcap;
+typedef struct Vec {
+    size_t elem_num;
+    size_t elem_size;
+    size_t maxcap;
 
-	char* bump_ptr;
+    char *bump_ptr;
 } Vec;
 
 
-/* ---------------------- VECTOR OPERATIONS ---------------------- */ 
+/* ---------------------- VECTOR OPERATIONS ---------------------- */
 
 
 /**
@@ -39,9 +39,9 @@ typedef struct Vec{
  * @param elem_size Size (in bytes) of a single element.
  *
  * @return Pointer to a valid `Vec` on success.
- * @retval NULL   Allocation failed (`errno` is set by `malloc`).
+ * @retval NULL   Allocation failed.
  */
-Vec* vec_new(size_t elem_size, size_t initial_capacity);
+Vec *vec_new(size_t elem_size, size_t initial_capacity);
 
 
 /**
@@ -57,7 +57,7 @@ Vec* vec_new(size_t elem_size, size_t initial_capacity);
  * @retval -1 `v_ptr` is NULL.
  * @retval -2 Vector is full (`elem_num == maxcap`).
  */
-int vec_push(Vec** v_ptr, const void* value);
+int vec_push(Vec ** v_ptr, const void *value);
 
 /**
  * @brief Remove the last element from a vector without retrieving it.
@@ -79,7 +79,7 @@ int vec_push(Vec** v_ptr, const void* value);
  * 
  * @see vec_pop_get() for retrieving the element value
  */
-int vec_pop_discard(Vec* v_ptr);
+int vec_pop_discard(Vec * v_ptr);
 
 /**
  * @brief Remove the last element from a vector and copy its value.
@@ -108,7 +108,7 @@ int vec_pop_discard(Vec* v_ptr);
  * @see vec_pop_discard() for discarding without retrieval
  * @see vec_peek() for accessing without removal
  */
-int vec_pop_get(Vec* v_ptr, void* out_value);
+int vec_pop_get(Vec * v_ptr, void *out_value);
 
 /**
  * @brief Get pointer to the last element without removing it.
@@ -118,7 +118,7 @@ int vec_pop_get(Vec* v_ptr, void* out_value);
  * 
  * @note The returned pointer is valid until the next vector operation.
  */
-void* vec_peek(Vec* v_ptr);
+void *vec_peek(Vec * v_ptr);
 
 
 /**
@@ -135,7 +135,7 @@ void* vec_peek(Vec* v_ptr);
  * @param value A constant pointer to the value to search for.
  * @return A pointer to the first matching element, or NULL if not found or on error.
  */
-void *vec_find(const Vec *restrict v_ptr, const void *restrict value);
+void *vec_find(const Vec * restrict v_ptr, const void *restrict value);
 
 
 /**
@@ -152,7 +152,7 @@ void *vec_find(const Vec *restrict v_ptr, const void *restrict value);
  * }
  * @endcode
  */
-int vec_peek_get(Vec* v_ptr, void* out_value);
+int vec_peek_get(Vec * v_ptr, void *out_value);
 
 
 /**
@@ -170,7 +170,7 @@ int vec_peek_get(Vec* v_ptr, void* out_value);
  * @retval -2 Vector is empty.
  * @retval -3 Element not found.
  */
-int vec_del(Vec *v_ptr, const void *value);
+int vec_del(Vec * v_ptr, const void *value);
 
 
 /**
@@ -185,8 +185,20 @@ int vec_del(Vec *v_ptr, const void *value);
  * @return Number of elements actually removed.
  * @retval -1 `v_ptr` is NULL.
  */
-int vec_rem(Vec *v_ptr, const void *value);
+int vec_rem(Vec * v_ptr, const void *value);
 
+
+/**
+ * @brief Remove the element in the index idx and 
+ *        Remaining elements are compacted so the vector remains dense.
+ *
+ * @param v_ptr  Pointer to an existing vector.
+ * @param idx    The index that you want to erase.
+ *
+ * @return Number of elements actually removed.
+ * @retval -1 `v_ptr` is NULL.
+ */
+int vec_rem_idx(Vec * v_ptr, size_t idx);
 
 /**
  * @brief Reduce the pre-allocated capacity of the vector to `newcap`.
@@ -197,7 +209,7 @@ int vec_rem(Vec *v_ptr, const void *value);
  * @retval 0   Capacity successfully updated.
  * @retval -1  An error occurred (e.g., invalid input, allocation failure).
  */
-int vec_shrink(Vec** vec, size_t newcap);
+int vec_shrink(Vec ** vec, size_t newcap);
 
 
 /**
@@ -211,7 +223,7 @@ int vec_shrink(Vec** vec, size_t newcap);
  * @retval 0  Success.
  * @retval -1 `v_ptr` is NULL or `*v_ptr` is already NULL.
  */
-int vec_free(Vec **v_ptr);
+int vec_free(Vec ** v_ptr);
 
 
 /**
@@ -223,7 +235,7 @@ int vec_free(Vec **v_ptr);
  * @return Pointer to the element on success.
  * @retval NULL If index is out of bounds.
  */
-void* vec_at(const Vec* v_ptr, size_t idx);
+void *vec_at(const Vec * v_ptr, size_t idx);
 
 
 /**
@@ -236,7 +248,7 @@ void* vec_at(const Vec* v_ptr, size_t idx);
  * @retval 0  Success.
  * @retval -1 Invalid input or out of bounds.
  */
-int vec_get(const Vec* v_ptr, size_t idx, void* out);
+int vec_get(const Vec * v_ptr, size_t idx, void *out);
 
 /**
  * @brief Copy a whole vector in a new memory location. 
@@ -246,19 +258,21 @@ int vec_get(const Vec* v_ptr, size_t idx, void* out);
  * @return A pointer to the new Vec.
  * @retval NULL if the operation failed.
  */
-Vec* vec_dup(const Vec* v_ptr);
+Vec *vec_dup(const Vec * v_ptr);
 
 /**
  * @brief Return number of elements currently stored.
  */
-static inline size_t vec_len(const Vec* v_ptr) {
+static inline size_t vec_len(const Vec *v_ptr)
+{
     return v_ptr ? v_ptr->elem_num : 0;
 }
 
 /**
  * @brief Return maximum number of elements the vector can hold.
  */
-static inline size_t vec_capacity(const Vec* v_ptr) {
+static inline size_t vec_capacity(const Vec *v_ptr)
+{
     return v_ptr ? v_ptr->maxcap : 0;
 }
 
@@ -266,10 +280,12 @@ static inline size_t vec_capacity(const Vec* v_ptr) {
  * @brief Remove all elements from the vector, resetting length to 0.
  *        Capacity remains unchanged.
  */
-static inline int vec_clear(Vec* v_ptr) {
-    if (!v_ptr) return -1;
+static inline int vec_clear(Vec *v_ptr)
+{
+    if (!v_ptr)
+        return -1;
     v_ptr->elem_num = 0;
-    v_ptr->bump_ptr = (char*)(v_ptr + 1);
+    v_ptr->bump_ptr = (char *) (v_ptr + 1);
     return 0;
 }
 

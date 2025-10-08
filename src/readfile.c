@@ -3,7 +3,7 @@
  */
 
 
-#define _POSIX_C_SOURCE 200809L	/* for POSIX functions/macros */
+#define _POSIX_C_SOURCE 200809L /* for POSIX functions/macros */
 
 
 #include <stdio.h>
@@ -11,7 +11,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <errno.h>
 #include <string.h>
 #include <sys/mman.h>
 
@@ -20,56 +19,45 @@
 
 /* -------------------- FILE READER ------------------ */
 
-
-char *
-read_file (const char *path, size_t *len_out)
+FileBuffer *read_file(const char *path)
 {
-    int fd = open (path, O_RDONLY);
+    int fd = open(path, O_RDONLY);
     if (fd == -1)
-      {
-	  fprintf (stderr, "open(%s): %s\n", path, strerror (errno));
-	  return NULL;
-      }
-
-
+        return NULL;
 
     struct stat st;
-    if (fstat (fd, &st) == -1)
-      {
-	  fprintf (stderr, "fstat(%s): %s\n", path, strerror (errno));
-	  close (fd);
-	  return NULL;
-      }
-
-    if (!S_ISREG (st.st_mode))
-      {
-	  fprintf (stderr, "%s: not a regular file\n", path);
-	  close (fd);
-	  return NULL;
-      }
+    if (fstat(fd, &st) == -1) {
+        close(fd);
+        return NULL;
+    }
 
     size_t size = (size_t) st.st_size;
+    char *file = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (file == MAP_FAILED)
+        return NULL;
+    close(fd);
 
-    void *file_contents = mmap (NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    FileBuffer *fb = malloc(sizeof(FileBuffer));
+    if (!fb) {
+        munmap(file, size);
+        return NULL;
+    }
 
-    char *buf = (char *) malloc (size);
-    if (!buf)
-      {
-	  fprintf (stderr, "malloc(%zu): %s\n", size, strerror (errno));
-	  close (fd);
-	  return NULL;
-      }
+    fb->data = file;
+    fb->size = size;
+    fb->is_mmaped = true;
 
-    void *cpy = memcpy (buf, file_contents, size);
-    if (!cpy)
-      {
-	  fprintf (stderr, "memcpy(file->buf): %s\n", strerror (errno));
-      }
+    return fb;
+}
 
-    if (len_out)
-	*len_out = size;
-
-    munmap (file_contents, size);
-    close (fd);
-    return buf;
+void filebuffer_free(FileBuffer *fb)
+{
+    if (!fb)
+        return;
+    if (fb->is_mmaped) {
+        munmap(fb->data, fb->size);
+    } else {
+        free(fb->data);
+    }
+    free(fb);
 }

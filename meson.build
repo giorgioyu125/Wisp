@@ -12,11 +12,12 @@ project('Wisp', 'c',
 sources = ['src/main.c',
            'src/readfile.c',
            'src/lexer.c',
+           'src/parser.c',
            'src/vec.c']
 
 add_project_arguments(['-Wall', '-Wextra', '-Wpedantic'], language: 'c')
 
-executable('Wisp', 
+executable('Wisp',
   sources,
   install: true,
   c_args: ['-ggdb'],
