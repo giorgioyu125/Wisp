@@ -25,7 +25,6 @@ Vec *lex_tokens(const char *source, size_t source_len)
             ptr++;
             continue;
         }
-
         // LPAREN
         if (c == '(') {
             Token tok = {
