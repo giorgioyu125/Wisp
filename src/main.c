@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "lexer.h"
 #include "readfile.h"
@@ -43,9 +44,17 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    ProgramFlux* program = parse(tokens);
+    if (!program){
+        fprintf(stderr, "parse [%d]: failed to construct the ProgramFlux\n", err);
+        filebuffer_free(file);
+        vec_free(&tokens);
+        return -1;
+    }
 
     err = vec_free(&tokens);
     filebuffer_free(file);
+    free(program);
     if (err != 0) {
         fprintf(stderr, "vec_free: failed to free tokens vector\n");
         return -1;

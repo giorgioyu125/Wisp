@@ -9,7 +9,7 @@ Lexer, Parser (annotation), Symbol Table, Arena, Vec, File I/O, Promise stubs
 ### **Step 1: Built-in Functions Registry**
 - [ ] Create `builtin_registry` (hash table of function pointers)
 - [ ] Implement: `register_builtin(name, fn_ptr)`
-- [ ] Add builtins: `+`, `-`, `*`, `/`, `=`, `<`, `>`, `atom`, `null?`
+- [ ] Add built-in: `+`, `-`, `*`, `/`, `=`, `<`, `>`, `atom`, `null?`
 - [ ] Test: `(* 3 4)` → 12
 
 **Files:** `builtins.h`, `builtins.c`
