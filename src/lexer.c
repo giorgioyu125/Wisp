@@ -242,12 +242,21 @@ void print_type(TokenType type)
             break;
         }
 
+
+    case TOKEN_IGNORE:
+        {
+            fprintf(stderr, "TOKEN_IGNORE");
+            break;
+        }
+
     case TOKEN_ERROR:
         {
             fprintf(stderr, "TOKEN_ERROR");
             break;
         }
     }
+
+
 }
 
 void print_token_value(char *value, size_t value_len)

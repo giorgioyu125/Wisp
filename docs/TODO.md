@@ -7,7 +7,7 @@ Lexer, Parser (annotation), Symbol Table, Arena, Vec, File I/O, Promise stubs
 ## **Phase 1: Core Foundation (Steps 1-6)**
 
 ### **Step 1: Built-in Functions Registry**
-- [ ] Create `builtin_registry` (hash table of function pointers)
+- [ ] Create `builtin_registry` and push it in the global symtab singleton.
 - [ ] Implement: `register_builtin(name, fn_ptr)`
 - [ ] Add built-in: `+`, `-`, `*`, `/`, `=`, `<`, `>`, `atom`, `null?`
 - [ ] Test: `(* 3 4)` → 12

@@ -60,28 +60,26 @@ int annotate_tokens(Vec *Tokens)
     return result;
 }
 
+void program_flux_free(ProgramFlux* flux) {
+    if (!flux) return;
+    vec_free(&flux->sexprs);
+    free(flux);
+}
+
 ProgramFlux* parse(Vec* annotated_tokens) {
     if (!annotated_tokens || annotated_tokens->elem_num == 0) {
         return NULL;
     }
 
     size_t max_id = 0;
-    size_t expr_count = 0;
     for (size_t i = 0; i < annotated_tokens->elem_num; i++) {
         Token* tok = (Token*)vec_at(annotated_tokens, i);
-        if (tok->type != TOKEN_IGNORE) {
-            if (tok->s_exprid > max_id) {
-                max_id = tok->s_exprid;
-            }
+        if (tok->s_exprid > max_id) {
+            max_id = tok->s_exprid;
         }
     }
 
-    typedef struct {
-        size_t start;
-        size_t end;
-        bool found;
-    } Bounds;
-
+    typedef struct { size_t start; size_t end; bool found; } Bounds;
     Bounds* bounds = calloc(max_id + 1, sizeof(Bounds));
     if (!bounds) return NULL;
 
@@ -94,15 +92,14 @@ ProgramFlux* parse(Vec* annotated_tokens) {
     for (size_t i = 0; i < annotated_tokens->elem_num; i++) {
         Token* tok = (Token*)vec_at(annotated_tokens, i);
 
-        if (tok->type != TOKEN_IGNORE) {
+        if (tok->type != TOKEN_IGNORE && tok->s_exprid > 0) {
             size_t id = tok->s_exprid;
 
-            if (!bounds[id].found) {
+            if (bounds[id].start == SIZE_MAX) {
                 bounds[id].start = i;
-                bounds[id].found = true;
-                expr_count++;
             }
             bounds[id].end = i;
+            bounds[id].found = true;
         }
     }
 
@@ -112,48 +109,31 @@ ProgramFlux* parse(Vec* annotated_tokens) {
         return NULL;
     }
 
-    flux->sexprs = vec_new(sizeof(SExpr*), expr_count > 0 ? expr_count : 1);
-    if (!flux->sexprs) {
-        free(flux);
-        free(bounds);
-        return NULL;
-    }
-
+    flux->sexprs = vec_new(sizeof(SExpr*), max_id);
     flux->tokens = annotated_tokens;
     flux->max_depth = max_id;
 
-    for (size_t id = max_id + 1; id > 0; id--) {
-        size_t actual_id = id - 1;
-
-        if (!bounds[actual_id].found) {
+    for (size_t id = max_id; id > 0; id--) {
+        if (!bounds[id].found) {
             continue;
         }
 
         SExpr* sexpr = malloc(sizeof(SExpr));
         if (!sexpr) {
-            for (size_t j = 0; j < vec_len(flux->sexprs); j++) {
-                SExpr** stored = (SExpr**)vec_at(flux->sexprs, j);
-                if (stored && *stored) free(*stored);
-            }
-            vec_free(&flux->sexprs);
-            free(flux);
             free(bounds);
+            program_flux_free(flux);
             return NULL;
         }
-        sexpr->id = actual_id;
-        sexpr->start_idx = bounds[actual_id].start;
-        sexpr->end_idx = bounds[actual_id].end;
+
+        sexpr->id = id;
+        sexpr->start_idx = bounds[id].start;
+        sexpr->end_idx = bounds[id].end;
         sexpr->tokens = annotated_tokens;
 
         if (vec_push(&flux->sexprs, &sexpr) != 0) {
             free(sexpr);
-            for (size_t j = 0; j < vec_len(flux->sexprs); j++) {
-                SExpr** stored = (SExpr**)vec_at(flux->sexprs, j);
-                if (stored && *stored) free(*stored);
-            }
-            vec_free(&flux->sexprs);
-            free(flux);
             free(bounds);
+            program_flux_free(flux);
             return NULL;
         }
     }

@@ -115,6 +115,7 @@ typedef struct SymTab {
     Symbol* buckets[];      ///< Hash table buckets
 } SymTab;
 
+extern SymTab* g_symtab;
 
 /* ----------------- Initialization & Cleanup ----------------- */
 

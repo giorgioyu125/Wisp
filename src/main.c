@@ -6,7 +6,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <time.h>
-#include <stdlib.h>
 
 #include "lexer.h"
 #include "readfile.h"
@@ -49,12 +48,27 @@ int main(int argc, char **argv)
         fprintf(stderr, "parse [%d]: failed to construct the ProgramFlux\n", err);
         filebuffer_free(file);
         vec_free(&tokens);
+        program_flux_free(program);
         return -1;
+    }
+
+    // Print the program flux tree
+    for (size_t expr_idx = 0; expr_idx < vec_len(program->sexprs); expr_idx++) {
+        SExpr* sexpr = *(SExpr**)vec_at(program->sexprs, expr_idx);
+
+        printf("[ID:%zu] ", sexpr->id);
+        for (size_t i = sexpr->start_idx; i <= sexpr->end_idx; i++) {
+            Token tok = vec_get_token(program->tokens, i);
+            if (tok.type != TOKEN_IGNORE) {
+                printf("%.*s ", (int)tok.value_len, tok.value);
+            }
+        }
+        printf("\n");
     }
 
     err = vec_free(&tokens);
     filebuffer_free(file);
-    free(program);
+    program_flux_free(program);
     if (err != 0) {
         fprintf(stderr, "vec_free: failed to free tokens vector\n");
         return -1;
