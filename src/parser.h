@@ -8,6 +8,8 @@
 #define PARSER_H
 
 #include "vec.h"
+#include "lexer.h"
+
 #include <stddef.h>
 
 

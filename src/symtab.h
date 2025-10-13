@@ -97,6 +97,10 @@ typedef struct Symbol {
     struct Symbol* next;    ///< For hash collision chaining
 } Symbol;
 
+typedef struct {
+    SymbolType  type;
+    SymbolValue val;
+} Value;
 
 /* ----------------------  SymTab  ------------------------- */
 
@@ -431,6 +435,50 @@ static inline void promise_register(promise* p) {
     g_tracker->pending_head = p;
 
     g_tracker->pending_count++;
+}
+
+
+/* --------------------------- DEBUGGING ---------------------- */
+
+#include <stdio.h>
+
+void print_value(const Value* val) {
+    if (!val) {
+        printf("<NULL>");
+        return;
+    }
+    switch (val->type) {
+        case SYM_INTEGER:
+            printf("%lld", val->val.int_val);
+            break;
+        case SYM_FLOAT:
+            printf("%f", val->val.float_val);
+            break;
+        case SYM_STRING:
+            printf("\"%s\"", val->val.str_val);
+            break;
+        case SYM_BOOLEAN:
+            printf(val->val.bool_val ? "#t" : "#f");
+            break;
+        case SYM_UNDEFINED:
+            printf("<undefined>");
+            break;
+        case SYM_BUILTIN:
+            printf("<builtin>");
+            break;
+        case SYM_FUNCTION:
+            printf("<function>");
+            break;
+        case SYM_LIST:
+            printf("<list>");
+            break;
+        case SYM_PROMISE:
+            printf("<promise>");
+            break;
+        default:
+            printf("<unknown type %d>", val->type);
+            break;
+    }
 }
 
 #endif // SYMTAB_H

@@ -16,15 +16,20 @@
 
 /* ---------------------------- VM Types -------------------------- */
 
-typedef struct {
-    SymbolType  type;
-    SymbolValue val;
-} Value;
 
 typedef struct {
     Arena* eval_cache; ///< This contains the result of the expressions
+    Arena* work_cache; ///< Needed by some functions to evaluate efficently
     SExpr* pc;         ///< This is the program counter and the implicit stack
 } VM;
+
+typedef struct WorkItem {
+    SExpr*  expr;      // expression to evaluate; sentinel if expr->id == SIZE_MAX
+    SymTab* env;       // environment for this frame
+    lambda* fn;        // for sentinel frames (lambda body driver)
+    size_t  body_idx;  // next body form to eval (for sentinel)
+    size_t  dest_id;   // where to store result (call-site id) for sentinel
+} WorkItem;
 
 enum {
     SVM_OK = 0,
@@ -58,9 +63,11 @@ static inline void svm_clear_cache(VM* vm) { arena_reset(vm->eval_cache); }
 
 /* --------------------------- Evaluation ------------------------- */
 
-int svm_eval_expr(VM* vm, const ProgramFlux* prog, const SExpr* expr, Value* out);
 int svm_eval_atom(VM* vm, SymTab* env, const Token* tok, Value* out);
-int svm_eval_list(VM* vm, SymTab* env, const ProgramFlux* prog, const SExpr* list, Value* out);
+int svm_step(VM* vm, const ProgramFlux* prog, Vec* stack, size_t root_dest_id, Value* out);
+int svm_eval_expr(VM* vm, SymTab* locals, const ProgramFlux* prog, SExpr* expr, Value* out);
+
+int evaluate_program(ProgramFlux* program);
 
 typedef enum { ELEM_ATOM, ELEM_SUBLIST } ElemKind;
 typedef struct {
@@ -70,7 +77,7 @@ typedef struct {
 } ListElem;
 
 /* ------------------------- Builtins ----------------------- */
-/* Call-site aware builtins; consistent ABI */
+
 int bltn_add   (VM* vm, SymTab* env, const SExpr* call, Value* out);
 int bltn_sub   (VM* vm, SymTab* env, const SExpr* call, Value* out);
 int bltn_mul   (VM* vm, SymTab* env, const SExpr* call, Value* out);
@@ -86,9 +93,25 @@ int bltn_cdr   (VM* vm, SymTab* env, const SExpr* call, Value* out);
 
 /* --------------------- Register Builtins --------------------- */
 
-/* You can implement this to bind symbols (+, -, *, /, quote, ...) to BuiltinFn
-   in g_symtab with type SYM_BUILTIN and value.fn = (BuiltinFn)pointer.
-   Note: prefer storing the function pointer in SymbolValue as a BuiltinFn typed field. */
-int svm_register_builtins(SymTab* env);
+int register_arithmetic_builtins(SymTab* env) {
+    if (!env) return -1;
+    SymbolValue add_val = { .ptr_val = (void*)bltn_add };
+    if (symtab_define(env, "+", 1, SYM_BUILTIN, add_val, SYM_FLAG_CONST) != 0) {
+        return -1;
+    }
+    SymbolValue sub_val = { .ptr_val = (void*)bltn_sub };
+    if (symtab_define(env, "-", 1, SYM_BUILTIN, sub_val, SYM_FLAG_CONST) != 0) {
+        return -1;
+    }
+    SymbolValue mul_val = { .ptr_val = (void*)bltn_mul };
+    if (symtab_define(env, "*", 1, SYM_BUILTIN, mul_val, SYM_FLAG_CONST) != 0) {
+        return -1;
+    }
+    SymbolValue div_val = { .ptr_val = (void*)bltn_div };
+    if (symtab_define(env, "/", 1, SYM_BUILTIN, div_val, SYM_FLAG_CONST) != 0) {
+        return -1;
+    }
+    return 0;
+}
 
 #endif /* SVM_H */
