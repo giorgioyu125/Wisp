@@ -13,7 +13,9 @@ sources = ['src/main.c',
            'src/readfile.c',
            'src/lexer.c',
            'src/parser.c',
-           'src/vec.c']
+           'src/vec.c',
+           'src/arena.c',
+           'src/svm.c']
 
 add_project_arguments(['-Wall', '-Wextra', '-Wpedantic'], language: 'c')
 

@@ -61,7 +61,6 @@ int main(int argc, char **argv)
     }
     printf("Parsed %zu S-expressions\n", vec_len(program->sexprs));
 
-    // Print the program flux tree
     printf("\n=== Program Structure ===\n");
     for (size_t expr_idx = 0; expr_idx < vec_len(program->sexprs); expr_idx++) {
         SExpr* sexpr = *(SExpr**)vec_at(program->sexprs, expr_idx);
@@ -76,14 +75,12 @@ int main(int argc, char **argv)
         printf("\n");
     }
 
-    // Evaluate the program
     printf("\n=== Starting Evaluation ===\n");
     int eval_result = evaluate_program(program);
     if (eval_result != 0) {
         fprintf(stderr, "Evaluation failed with code %d\n", eval_result);
     }
 
-    // Cleanup
     printf("=== Cleanup ===\n");
     err = vec_free(&tokens);
     filebuffer_free(file);
