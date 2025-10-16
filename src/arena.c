@@ -8,7 +8,6 @@
 
 #define ARENA_ALIGNMENT sizeof(void*)
 #define DEFAULT_ARENA_SIZE 1 * 1024
-#define GROWTH_FACTOR 1.5
 
 Arena* arena_create(size_t capacity) {
     Arena* arena = malloc(sizeof(Arena));

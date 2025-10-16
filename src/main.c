@@ -14,6 +14,7 @@
 #include "svm.h"
 #include "symtab.h"
 
+SymTab* g_symtab = { 0 };
 
 /* --------------------- Main Function --------------------- */
 
@@ -96,3 +97,4 @@ int main(int argc, char **argv)
     fprintf(stderr, "Total time: %.6f seconds\n", total_time);
     return 0;
 }
+
