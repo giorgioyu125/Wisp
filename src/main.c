@@ -9,12 +9,10 @@
 
 #include "lexer.h"
 #include "readfile.h"
+#include "src/arena.h"
 #include "vec.h"
 #include "parser.h"
-#include "svm.h"
 #include "symtab.h"
-
-SymTab* g_symtab = { 0 };
 
 /* --------------------- Main Function --------------------- */
 
@@ -33,63 +31,33 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    size_t initial_arena_size = (file->size > 1024*1024) ? file->size * 2 : 2 * 1024 * 1024;
+    Arena* global_arena = arena_create(initial_arena_size);
+
     printf("=== Lexing ===\n");
-    Vec *tokens = lex_tokens(file->data, file->size);
+    Vec *tokens = lex_tokens(file->data, file->size, &global_arena);
     if (!tokens) {
         fprintf(stderr, "lex_tokens: failed to lex tokens\n");
         filebuffer_free(file);
         return -1;
     }
-    printf("Lexed %zu tokens\n", vec_len(tokens));
+    printf("Lexed %zu tokens", vec_len(tokens));
 
-    printf("=== Annotating ===\n");
-    int err = annotate_tokens(tokens);
-    if (err != 0) {
-        fprintf(stderr, "annotate_tokens [%d]: failed to annotate tokens vector\n", err);
-        filebuffer_free(file);
-        vec_free(&tokens);
+    if (!global_arena) {
+        fprintf(stderr, "Failed to create global memory arena.\n");
         return -1;
     }
-    printf("Annotation successful\n");
-
-    printf("=== Parsing ===\n");
-    ProgramFlux* program = parse(tokens);
-    if (!program){
-        fprintf(stderr, "parse: failed to construct the ProgramFlux\n");
-        filebuffer_free(file);
-        vec_free(&tokens);
-        return -1;
-    }
-    printf("Parsed %zu S-expressions\n", vec_len(program->sexprs));
-
-    printf("\n=== Program Structure ===\n");
-    for (size_t expr_idx = 0; expr_idx < vec_len(program->sexprs); expr_idx++) {
-        SExpr* sexpr = *(SExpr**)vec_at(program->sexprs, expr_idx);
-
-        printf("[ID:%zu] ", sexpr->id);
-        for (size_t i = sexpr->start_idx; i <= sexpr->end_idx; i++) {
-            Token tok = vec_get_token(program->tokens, i);
-            if (tok.type != TOKEN_IGNORE) {
-                printf("%.*s ", (int)tok.value_len, tok.value);
-            }
-        }
-        printf("\n");
-    }
-
-    printf("\n=== Starting Evaluation ===\n");
-    int eval_result = evaluate_program(program);
-    if (eval_result != 0) {
-        fprintf(stderr, "Evaluation failed with code %d\n", eval_result);
+    ConsList* program_ast = parse_program(tokens, &global_arena);
+    if (program_ast) {
+        printf("\n=== Parsed AST ===\n");
+        print_program(program_ast);
+    } else {
+        fprintf(stderr, "Parsing failed.\n");
     }
 
     printf("=== Cleanup ===\n");
-    err = vec_free(&tokens);
     filebuffer_free(file);
-    program_flux_free(program);
-    if (err != 0) {
-        fprintf(stderr, "vec_free: failed to free tokens vector\n");
-        return -1;
-    }
+    arena_free(global_arena);
 
     clock_t end = clock();
     double total_time = (double) (end - start) / CLOCKS_PER_SEC;

@@ -7,6 +7,8 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <stdint.h>
+
 #include "vec.h"
 
 /*
@@ -63,6 +65,8 @@ static inline Vec* arena_vec_new(Arena** a, size_t elem_size, size_t capacity) {
     v->bump_ptr  = (char*)v + sizeof(Vec);
     return v;
 }
+
+
 static inline int vec_push_nogrow(Vec* v_ptr, const void* elem) {
     if (!v_ptr || !elem) return -1;
     if (v_ptr->elem_num >= v_ptr->maxcap) return -2;
@@ -71,6 +75,7 @@ static inline int vec_push_nogrow(Vec* v_ptr, const void* elem) {
     v_ptr->elem_num++;
     return 0;
 }
+
 #define VEC_TOP_PTR(v, T) ((T*)((v)->bump_ptr - (v)->elem_size))
 #define VEC_POP(v) do { (v)->elem_num--; (v)->bump_ptr -= (v)->elem_size; } while(0)
 #define VEC_REPLACE(v, idx, new_val) do { \
@@ -79,7 +84,39 @@ static inline int vec_push_nogrow(Vec* v_ptr, const void* elem) {
     memcpy(pos, &(new_val), (v)->elem_size); \
 } while(0)
 
+static inline int arena_vec_push(Vec** vec_ptr, const void* elem, Arena** arena) {
+    if (!vec_ptr || !*vec_ptr || !elem || !arena || !*arena) return -1;
 
-void   arena_reset(Arena* arena);
+    Vec* v = *vec_ptr;
+
+    if (v->elem_num < v->maxcap) {
+        return vec_push_nogrow(v, elem);
+    }
+
+    size_t need    = v->elem_num + 1;
+    size_t new_cap = v->maxcap ? v->maxcap * 2 : 16;
+    if (new_cap < need) new_cap = need;
+
+    if (new_cap > (SIZE_MAX - sizeof(Vec)) / v->elem_size) return -2;
+
+    Vec* new_vec = arena_vec_new(arena, v->elem_size, new_cap);
+    if (!new_vec) return -3;
+
+    size_t bytes_used = v->elem_num * v->elem_size;
+    if (bytes_used) {
+        memcpy((char*)(new_vec + 1), (const char*)(v + 1), bytes_used);
+    }
+
+    memcpy((char*)(new_vec + 1) + bytes_used, elem, v->elem_size);
+
+    new_vec->elem_num = v->elem_num + 1;
+    new_vec->bump_ptr = (char*)(new_vec + 1) + new_vec->elem_num * v->elem_size;
+
+    *vec_ptr = new_vec;
+    return 0;
+}
+
+
+void arena_reset(Arena* arena);
 
 #endif

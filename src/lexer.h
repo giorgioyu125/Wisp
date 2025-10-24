@@ -6,7 +6,9 @@
 #define LEXER_H
 
 #include <stddef.h>
+
 #include "vec.h"
+#include "arena.h"
 
 /**
  * @enum TokenType
@@ -23,6 +25,9 @@ typedef enum {
     TOKEN_IDENTIFIER,           ///< Identifier (e.g., 'foo', 'bar' 'add' 'func1')
     TOKEN_QUOTE,                ///< Quote character '\''
     TOKEN_COMMA,                ///< Comma ','
+    TOKEN_BACKQUOTE,            ///< Backquote '`'
+    TOKEN_UNINTERNED_SYMBOL,    ///< Especially used in macro to not pollute 
+                                ///     the local symtab and prevent unwanted shadowing
     TOKEN_ERROR,                ///< Invalid or unrecognized token
     TOKEN_IGNORE                ///< This is the type of the parenthesis after the parsing
 } TokenType;
@@ -37,8 +42,6 @@ typedef struct {
     TokenType type;             ///< Type of the token
     size_t value_len;           ///< Length of the token's value (if applicable)
     char *value;                ///< Pointer to the token's value (points into the original source)
-
-    size_t s_exprid;            ///< This member is used by the parser. @see parser.h
 } Token;
 
 
@@ -56,7 +59,7 @@ typedef struct {
  * @param source_len Length of the input source code.
  * @return Vec* A vector of tokens, or NULL if memory allocation fails.
  */
-Vec *lex_tokens(const char *source, size_t source_len);
+Vec *lex_tokens(const char *source, size_t source_len, Arena** arena);
 
 
 /**

@@ -73,7 +73,7 @@ static inline Node* ll_pop_front(LinkedList* ll) {
 
 static inline Node* ll_pop_back(LinkedList* ll) {
     if (ll_empty(ll)) return NULL;
-    
+
     Node* temp = ll->head;
     while (temp->cdr && temp->cdr->size == ll->length - 2) {
         temp = temp->cdr;
@@ -94,6 +94,22 @@ static inline void ll_remove(LinkedList* ll, Node* n) {
     ll->head = n->cdr;
     ll->length--;
     n->cdr = NULL;
+}
+
+static inline void ll_reverse(LinkedList* ll) {
+    Node* prev = NULL;
+    Node* current = ll->head;
+    Node* next = NULL;
+
+    while (current) {
+        next = current->cdr;
+        current->cdr = prev;
+
+        prev = current;
+        current = next;
+    }
+
+    ll->head = prev;
 }
 
 #endif

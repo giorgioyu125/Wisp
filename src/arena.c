@@ -3,18 +3,18 @@
  */
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/mman.h>
 
 #include "arena.h"
 
 #define ARENA_ALIGNMENT sizeof(void*)
-#define DEFAULT_ARENA_SIZE 1 * 1024
 
 Arena* arena_create(size_t capacity) {
     Arena* arena = malloc(sizeof(Arena));
     if (!arena) return NULL;
 
-    arena->start = malloc(capacity);
-    if (!arena->start) {
+    arena->start = mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (arena->start == MAP_FAILED) {
         free(arena);
         return NULL;
     }
@@ -26,7 +26,7 @@ Arena* arena_create(size_t capacity) {
 
 void arena_free(Arena* arena) {
     if (!arena) return;
-    free(arena->start);
+    munmap(arena->start, arena->capacity);
     free(arena);
 }
 
@@ -37,13 +37,16 @@ void* arena_alloc(Arena** arena_ptr, size_t size) {
 
     Arena* current_arena = *arena_ptr;
 
-    #define ARENA_ALIGNMENT sizeof(void*)
     uintptr_t current_ptr = (uintptr_t)current_arena->start + current_arena->offset;
     uintptr_t aligned_ptr = (current_ptr + ARENA_ALIGNMENT - 1) & ~(ARENA_ALIGNMENT - 1);
     size_t aligned_offset = aligned_ptr - (uintptr_t)current_arena->start;
 
     if (aligned_offset + size > current_arena->capacity) {
-        size_t new_capacity = (size > DEFAULT_ARENA_SIZE) ? size : DEFAULT_ARENA_SIZE;
+        size_t new_capacity = current_arena->capacity;
+
+        if (size > new_capacity) {
+            new_capacity = size * 2;
+        }
 
         Arena* new_arena = arena_create(new_capacity);
         if (!new_arena) {
