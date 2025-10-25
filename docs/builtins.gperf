@@ -1,0 +1,35 @@
+%{
+#include "eval.h"
+%}
+struct BuiltinName { const char* name; BuiltinType type; };
+%%
+"+", BUILTIN_ADD
+"-", BUILTIN_SUB
+"*", BUILTIN_MUL
+"/", BUILTIN_DIV
+"mod", BUILTIN_MOD
+"=", BUILTIN_NUM_EQ
+"<", BUILTIN_LESS_THAN
+">", BUILTIN_GREATER_THAN
+"<=", BUILTIN_LESS_EQ
+">=", BUILTIN_GREATER_EQ
+"cons", BUILTIN_CONS
+"car", BUILTIN_CAR
+"cdr", BUILTIN_CDR
+"list", BUILTIN_LIST
+"atom?", BUILTIN_IS_ATOM
+"pair?", BUILTIN_IS_PAIR
+"list?", BUILTIN_IS_LIST
+"null?", BUILTIN_IS_NULL
+"number?", BUILTIN_IS_NUMBER
+"string?", BUILTIN_IS_STRING
+"symbol?", BUILTIN_IS_SYMBOL
+"procedure?", BUILTIN_IS_PROCEDURE
+"eq?", BUILTIN_EQ
+"equal?", BUILTIN_EQUAL
+"display", BUILTIN_DISPLAY
+"newline", BUILTIN_NEWLINE
+"apply", BUILTIN_APPLY
+"eval", BUILTIN_EVAL
+"exit", BUILTIN_EXIT
+%%

@@ -273,7 +273,7 @@ void *vec_at(const Vec *v_ptr, size_t idx)
 {
     if (!v_ptr || idx >= v_ptr->elem_num)
         return NULL;
-    return (char *) (v_ptr) + sizeof(Vec) + (idx * v_ptr->elem_size);
+    return (char*)(v_ptr) + sizeof(Vec) + (idx * v_ptr->elem_size);
 }
 
 int vec_get(const Vec *v_ptr, size_t idx, void *out)

@@ -14,7 +14,9 @@ sources = ['src/main.c',
            'src/lexer.c',
            'src/parser.c',
            'src/vec.c',
-           'src/arena.c']
+           'src/arena.c',
+           'src/find_builtin.c',
+           'src/eval.c']
 
 add_project_arguments(['-Wall', '-Wextra', '-Wshadow'], language: 'c')
 

@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <math.h>
+
+#define MAX_CONSECUTIVE_QUOTES 8 ///< This is the maximum number of nested quotes ''''...(value)
 
 /* ------------ Utilities (Pure Cons-Cell Logic) ------------ */
 
@@ -32,28 +35,47 @@ Cons* parse_list(Cons** cursor, Arena** arena) {
     if (!body) return NULL;
     cons_list_init(body);
 
+    NodeType quote_stack[MAX_CONSECUTIVE_QUOTES];
+    int quote_stack_top = 0;
+
     while (cur) {
-        if (cur->type == NODE_OPENING_SEPARATOR) {
-            Cons* nested = parse_list(&cur, arena);
-            if (!nested) return NULL;
-            cons_list_push_back(body, nested);
+        if (cur->type >= NODE_QUOTE && cur->type <= NODE_UNQUOTE) {
+            if (quote_stack_top < 8) {
+                quote_stack[quote_stack_top++] = cur->type;
+            }
+            cur = cur->cdr;
             continue;
         }
-        if (cur->type == NODE_CLOSING_SEPARATOR) {
+
+        Cons* expr = NULL;
+
+        if (cur->type == NODE_OPENING_SEPARATOR) {
+            expr = parse_list(&cur, arena);
+            if (!expr) return NULL;
+        } else if (cur->type == NODE_CLOSING_SEPARATOR) {
             *cursor = cur->cdr;
             return wrap_list(body, arena);
+        } else {
+            expr = cons_clone_shallow(cur, arena);
+            if (!expr) return NULL;
+            cur = cur->cdr;
         }
-        Cons* atom = cons_clone_shallow(cur, arena);
-        if (!atom) return NULL;
-        cons_list_push_back(body, atom);
-        cur = cur->cdr;
+
+        while (quote_stack_top > 0) {
+            Cons* temp = expr;
+            expr = make_atom(&temp, sizeof(Cons*), quote_stack[--quote_stack_top], arena);
+            if (!expr) return NULL;
+        }
+
+        cons_list_push_back(body, expr);
     }
 
+    fprintf(stderr, "Parsing Error: Unclosed parenthesis.\n");
     return NULL;
 }
 
 
-/* ------------ API ------------ */
+/* --------------- Parser API ----------------- */
 
 ConsList* parse_sexpr(Vec* tokens, Arena** arena) {
     if (!tokens || !arena || !*arena || vec_len(tokens) == 0) {
@@ -80,21 +102,44 @@ ConsList* parse_sexpr(Vec* tokens, Arena** arena) {
             } break;
 
             case TOKEN_INTEGER: {
-                char* buf = (char*)arena_alloc(arena, tok.value_len + 1);
-                if (!buf) {
-                    return NULL;
-                }
-                memcpy(buf, tok.value, tok.value_len);
-                buf[tok.value_len] = '\0';
+                char buf[32];
+                size_t len = tok.value_len < 31 ? tok.value_len : 31;
+                memcpy(buf, tok.value, len);
+                buf[len] = '\0';
 
                 errno = 0;
                 char* endptr = NULL;
                 long long val = strtoll(buf, &endptr, 10);
 
                 if (errno == ERANGE || endptr == buf || *endptr != '\0') {
-                    node = make_atom(&buf, sizeof(char*), NODE_ATOM_SYM, arena);
+                    char* s = (char*)arena_alloc(arena, tok.value_len + 1);
+                    if (!s) return NULL;
+                    memcpy(s, tok.value, tok.value_len);
+                    s[tok.value_len] = '\0';
+                    node = make_atom(&s, sizeof(char*), NODE_ATOM_SYM, arena);
                 } else {
                     node = make_atom(&val, sizeof(val), NODE_ATOM_INT, arena);
+                }
+            } break;
+
+            case TOKEN_FLOAT: {
+                char buf[64];
+                size_t len = tok.value_len < 63 ? tok.value_len : 63;
+                memcpy(buf, tok.value, len);
+                buf[len] = '\0';
+
+                errno = 0;
+                char* endptr = NULL;
+                long double val = strtold(buf, &endptr);
+
+                if (errno == ERANGE || endptr == buf || *endptr != '\0' || !isfinite(val)) {
+                    char* s = (char*)arena_alloc(arena, tok.value_len + 1);
+                    if (!s) return NULL;
+                    memcpy(s, tok.value, tok.value_len);
+                    s[tok.value_len] = '\0';
+                    node = make_atom(&s, sizeof(char*), NODE_ATOM_SYM, arena);
+                } else {
+                    node = make_atom(&val, sizeof(long double), NODE_ATOM_FLOAT, arena);
                 }
             } break;
 
@@ -122,11 +167,19 @@ ConsList* parse_sexpr(Vec* tokens, Arena** arena) {
                 node = make_atom(&s, sizeof(char*), NODE_ATOM_UNINTERNED, arena);
             } break;
 
-            case TOKEN_FLOAT:
-            case TOKEN_IDENTIFIER:
-            case TOKEN_QUOTE:
-            case TOKEN_BACKQUOTE:
-            case TOKEN_COMMA: {
+            case TOKEN_QUOTE:{
+                node = make_shallow_atom(NODE_QUOTE, NULL, 0, arena);
+            }break;
+
+            case TOKEN_BACKQUOTE:{
+                node = make_shallow_atom(NODE_QUASIQUOTE, NULL, 0, arena);
+            } break;
+
+            case TOKEN_COMMA:{
+                node = make_shallow_atom(NODE_UNQUOTE, NULL, 0, arena);
+            }break;
+
+            case TOKEN_IDENTIFIER: {
                 char* s = (char*)arena_alloc(arena, tok.value_len + 1);
                 if (!s) {
                     return NULL;
@@ -255,27 +308,47 @@ static void print_expression(FILE* stream, const Cons* expr) {
                 fprintf(stream, "%lld", *(long long*)(node->car));
                 break;
             }
+
             case NODE_ATOM_SYM: {
                 fprintf(stream, "%s", *(char**)(node->car));
                 break;
             }
+
             case NODE_ATOM_STR: {
                 fprintf(stream, "\"%s\"", *(char**)(node->car));
                 break;
             }
+
+            case NODE_QUOTE:
+            case NODE_QUASIQUOTE:
+            case NODE_UNQUOTE: {
+                char prefix = (node->type == NODE_QUOTE) ? '\''
+                            : (node->type == NODE_QUASIQUOTE) ? '`'
+                            : ',';
+                fprintf(stream, "%c", prefix);
+
+                const Cons* inner_expr = *(const Cons**)(node->car);
+
+                vec_push(&worklist, &inner_expr);
+                break;
+            }
+
             case NODE_ATOM_UNINTERNED:{
                 fprintf(stream, "%s", *(char**)(node->car));
                 break;
             }
+
             case NODE_NIL: {
                 fprintf(stream, "nil");
                 break;
             }
+
             case NODE_OPENING_SEPARATOR:
             case NODE_CLOSING_SEPARATOR: {
                 fprintf(stream, "<PARSER_ARTIFACT>");
                 break;
             }
+
             case NODE_LIST: {
                 fprintf(stream, "(");
                 vec_push(&worklist, &RPAREN_MARKER);
@@ -308,6 +381,7 @@ static void print_expression(FILE* stream, const Cons* expr) {
                 }
                 break;
             }
+
             default: {
                 fprintf(stream, "<UNKNOWN_NODE_TYPE>");
                 break;

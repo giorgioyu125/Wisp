@@ -22,8 +22,11 @@ typedef enum NodeType{
     NODE_ATOM_STR,          ///< car[] holds char* (string)
     NODE_ATOM_UNINTERNED,   ///< car[] holds char* (uninterned symbol #:foo)
     NODE_LIST,              ///< car[] holds ConsList*
-    NODE_CLOSING_SEPARATOR, ///< Parser artifact
-    NODE_OPENING_SEPARATOR, ///< Parser artifact
+    NODE_QUOTE,             ///< car[] holds a ''' to quote
+    NODE_QUASIQUOTE,        ///< car[] holds a '`' to quasiquote
+    NODE_UNQUOTE,           ///< car[] holds a ',' to unquote
+    NODE_CLOSING_SEPARATOR, ///< Parser artifact for ')'
+    NODE_OPENING_SEPARATOR, ///< Parser artifact for '('
     NODE_NIL                ///< car[] holds NULL
 } NodeType;
 
@@ -71,6 +74,7 @@ Cons* parse_list(Cons** cursor, Arena** arena);
 /**
  * @brief Linearize a Vec<Token> into a flat Cons chain and parse one S-expression.
  * @retval ConsList* containing the parsed top-level form.
+ *
  */
 ConsList* parse_sexpr(Vec* tokens, Arena** arena);
 
@@ -80,6 +84,9 @@ ConsList* parse_sexpr(Vec* tokens, Arena** arena);
  * @note This function identifies all separate top-level expressions in the token stream,
  *       iteratively parses each one, and bundles the resulting ASTs into a single
  *       ConsList representing the entire program.
+ *       To clarify, because of cons_list_push_back all the top level forms are
+ *       connected via the cdr of the head cons @see ConsList, and the final one is simply 
+ *       pointed by the tail field of the ConsList* and posses a NULL pointer in cdr.
  */
 ConsList* parse_program(Vec* tokens, Arena** arena);
 

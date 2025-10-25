@@ -12,7 +12,7 @@
 #include "src/arena.h"
 #include "vec.h"
 #include "parser.h"
-#include "symtab.h"
+#include "eval.h"
 
 /* --------------------- Main Function --------------------- */
 
@@ -54,6 +54,7 @@ int main(int argc, char **argv)
     } else {
         fprintf(stderr, "Parsing failed.\n");
     }
+
 
     printf("=== Cleanup ===\n");
     filebuffer_free(file);
